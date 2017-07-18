@@ -1,0 +1,43 @@
+---
+Description: Drone AWS Lambda Example
+
+AWSTemplateFormatVersion: '2010-09-09'
+
+Parameters:
+  CodeVersion:
+    Type: String
+    Description: The version number of the code
+
+Resources:
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      Policies:
+      - PolicyName: root
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - logs:*
+            Resource: arn:aws:logs:*:*:*
+  LambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: drone-lambda-example
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        S3Bucket: tm-drone-artifacts
+        S3Key: !Sub trinitymirror-ondemand/drone-lambda-example/code-v${CodeVersion}.zip
+      Runtime: nodejs4.3

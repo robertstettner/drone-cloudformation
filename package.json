@@ -1,0 +1,32 @@
+{
+  "name": "drone-cloudformation",
+  "version": "1.0.0",
+  "description": "Drone plugin for creating/updating or deleting an AWS CloudFormation stack",
+  "main": "index.js",
+  "scripts": {
+    "pretest": "eslint .",
+    "test": "npm run test:unit && npm run test:component",
+    "test:unit": "nyc --report-dir ./coverage/unit mocha -r mocha-plugin-highland test/unit.spec.js",
+    "test:component": "nyc --report-dir ./coverage/component mocha test/component.spec.js",
+    "posttest": "npm outdated -l || true",
+    "coverage": "cat ./coverage/unit/lcov.info | coveralls"
+  },
+  "author": "Robert Stettner (https://github.com/robertstettner)",
+  "license": "MIT",
+  "devDependencies": {
+    "coveralls": "2.13.1",
+    "eslint": "4.2.0",
+    "mocha": "3.4.2",
+    "mocha-plugin-highland": "0.0.2",
+    "nyc": "11.0.3",
+    "rewire": "2.5.2",
+    "should": "11.2.1",
+    "should-sinon": "0.0.5",
+    "sinon": "2.3.8"
+  },
+  "dependencies": {
+    "cfn": "robertstettner/cfn#add-validate",
+    "highland": "2.11.1",
+    "ramda": "0.24.1"
+  }
+}
