@@ -8,4 +8,4 @@ ENV NODE_ENV production
 
 RUN npm prune && yarn install
 
-ENTRYPOINT node /plugin/src/index.js
+ENTRYPOINT node /plugin/index.js
