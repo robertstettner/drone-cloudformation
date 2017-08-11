@@ -12,7 +12,7 @@ The following parameters are used to configure the plugin:
 - `mode`: the mode to run the plugin. Defaults to `createOrUpdate`.
 - `stackname`: the name of the CloudFormation stack. Required.
   Not needed for the `validate` mode.
-- `template`: the path location of the template file. Required.
+- `template`: the path location of the template file or S3 url. Required.
   Not needed for the `delete` mode.
 - `params`: object of parameters to feed into the template. Optional.
   Not needed for `validate` and `delete` modes.
@@ -43,6 +43,22 @@ pipeline:
     pull: true
     stackname: my-awesome-stack-${DRONE_BRANCH}
     template: templates/stack.yml
+    params:
+      Version: ${DRONE_BUILD_NUMBER}
+      Environment: ${DRONE_DEPLOY_TO}
+    when:
+      event: deployment
+```
+
+Deployment example with template file in S3 below:
+```yaml
+pipeline:
+  ...
+  deploy:
+    image: robertstettner/drone-cloudformation
+    pull: true
+    stackname: my-awesome-stack-${DRONE_BRANCH}
+    template: s3://mybucket/template.yml
     params:
       Version: ${DRONE_BUILD_NUMBER}
       Environment: ${DRONE_DEPLOY_TO}

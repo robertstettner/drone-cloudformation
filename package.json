@@ -25,7 +25,7 @@
     "sinon": "2.3.8"
   },
   "dependencies": {
-    "cfn": "robertstettner/cfn#add-validate",
+    "cfn": "nchinan/cfn#template-url-support",
     "highland": "2.11.1",
     "ramda": "0.24.1"
   }
