@@ -102,7 +102,9 @@ let validate = function (envs) {
         .flatMap(env => hl.of(validateConfig(env)))
         .flatMap(env =>{
             if (env.PLUGIN_MODE !== 'delete') {
-                return hl.of(resolveAbsolutePath(env.PLUGIN_TEMPLATE))
+                return hl.of(env.PLUGIN_TEMPLATE)
+                    .reject(x => /s3:\/\//.test(x) || /https:\/\//.test(x))
+                    .map(resolveAbsolutePath)
                     .flatMap(fs.statStream);
             }
             return hl([]);
