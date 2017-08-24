@@ -598,6 +598,44 @@ describe('Unit tests: Drone CloudFormation', () => {
                 fsMock.statStream.should.be.calledWith('/new-template.yml');
             });
         });
+        it('should return env object for non-delete modes for non-local path', () => {
+            validateConfigStub = sandbox.stub().returns({
+                PLUGIN_STACKNAME: 'NOTCool',
+                PLUGIN_TEMPLATE: 's3://mybucket/t.yml',
+                PLUGIN_PARAMS: '{"hoo":"haa"}',
+                PLUGIN_ACCESS_KEY: '4321',
+                PLUGIN_SECRET_KEY: 'dcba'
+            });
+
+            revert.push(plugin.__set__('validateConfig', validateConfigStub));
+            
+            return validate({
+                PLUGIN_STACKNAME: 'myCoolStack',
+                PLUGIN_TEMPLATE: 's3://mybucket/template.yml',
+                PLUGIN_PARAMS: '{"foo":"bar"}',
+                PLUGIN_ACCESS_KEY: '1234',
+                PLUGIN_SECRET_KEY: 'abcd'
+            }).tap(data => {
+                data.should.eql({
+                    PLUGIN_STACKNAME: 'myCoolStack',
+                    PLUGIN_TEMPLATE: 's3://mybucket/template.yml',
+                    PLUGIN_PARAMS: '{"foo":"bar"}',
+                    PLUGIN_ACCESS_KEY: '1234',
+                    PLUGIN_SECRET_KEY: 'abcd'
+                });
+                validateConfigStub.should.be.calledOnce();
+                validateConfigStub.should.be.calledWith({
+                    PLUGIN_STACKNAME: 'NOTCool',
+                    PLUGIN_TEMPLATE: 's3://mybucket/t.yml',
+                    PLUGIN_PARAMS: '{"hoo":"haa"}',
+                    PLUGIN_ACCESS_KEY: '4321',
+                    PLUGIN_SECRET_KEY: 'dcba'
+                });
+                resolveAbsolutePathStub.should.not.be.called();
+                fsMock.statStream.should.not.be.called();
+            });
+        });
+
         it('should return env object for delete mode', () => {
             validateConfigStub = sandbox.stub().returns({
                 PLUGIN_MODE: 'delete',
