@@ -562,7 +562,7 @@ describe('Unit tests: Drone CloudFormation', () => {
             revert.forEach(func => func());
         });
         it('should return template for non-local template', () => {
-            return resolveTemplate('s3://mybucket/template.yml').tap(data => {
+            return resolveTemplate('https://s3.amazonaws.com/mybucket/template.yml').tap(data => {
                 data.should.eql(1);
                 resolveAbsolutePathStub.should.not.be.calledOnce();
                 fsMock.statStream.should.not.be.called();
@@ -630,14 +630,14 @@ describe('Unit tests: Drone CloudFormation', () => {
             
             return validate({
                 PLUGIN_STACKNAME: 'myCoolStack',
-                PLUGIN_TEMPLATE: 's3://mybucket/template.yml',
+                PLUGIN_TEMPLATE: 'https://s3.amazonaws.com/mybucket/template.yml',
                 PLUGIN_PARAMS: '{"foo":"bar"}',
                 PLUGIN_ACCESS_KEY: '1234',
                 PLUGIN_SECRET_KEY: 'abcd'
             }).tap(data => {
                 data.should.eql({
                     PLUGIN_STACKNAME: 'myCoolStack',
-                    PLUGIN_TEMPLATE: 's3://mybucket/template.yml',
+                    PLUGIN_TEMPLATE: 'https://s3.amazonaws.com/mybucket/template.yml',
                     PLUGIN_PARAMS: '{"foo":"bar"}',
                     PLUGIN_ACCESS_KEY: '1234',
                     PLUGIN_SECRET_KEY: 'abcd'
@@ -648,7 +648,7 @@ describe('Unit tests: Drone CloudFormation', () => {
                     PLUGIN_PARAMS: '{"foo":"bar"}',
                     PLUGIN_SECRET_KEY: "abcd",
                     PLUGIN_STACKNAME: "myCoolStack",
-                    PLUGIN_TEMPLATE: "s3://mybucket/template.yml"
+                    PLUGIN_TEMPLATE: "https://s3.amazonaws.com/mybucket/template.yml"
                 });
                 resolveTemplateStub.should.be.called();
                 resolveTemplateStub.should.be.calledWith('omg.yml');
