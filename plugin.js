@@ -10,7 +10,7 @@ let log = console.log; // eslint-disable-line no-console
 let resolveAbsolutePath = p => path.resolve(process.cwd(), p);
 
 let resolveTemplate = template => {
-    if (!/s3:\/\//.test(template) && !/https:\/\//.test(template)) {
+    if (!/https:\/\//.test(template)) {
         return hl.of(template)
             .map(resolveAbsolutePath)
             .flatMap(fs.statStream);
@@ -92,7 +92,7 @@ let execute = function (env) {
     if (env.PLUGIN_MODE !== 'validate') {
         config.name = env.PLUGIN_STACKNAME;
     }
-    if (env.PLUGIN_MODE !== 'delete') {
+    if (env.PLUGIN_MODE !== 'delete' && !/https:\/\//.test(env.PLUGIN_TEMPLATE)) {
         config.template = resolveAbsolutePath(env.PLUGIN_TEMPLATE);
     }
     if (R.contains(env.PLUGIN_MODE, ['createOrUpdate','create'])) {
