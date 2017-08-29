@@ -546,8 +546,42 @@ describe('Unit tests: Drone CloudFormation', () => {
 
 
     });
+    describe('resolveTemplate()', () => {
+        let resolveAbsolutePathStub, fsMock;
+        const revert = [];
+        const resolveTemplate = plugin.__get__('resolveTemplate');
+        beforeEach(() => {
+            resolveAbsolutePathStub = sandbox.stub().returns('/new-template.yml');
+            fsMock = {
+                statStream: sandbox.stub().returns(hl.of(1))
+            };
+            revert.push(plugin.__set__('resolveAbsolutePath', resolveAbsolutePathStub));
+            revert.push(plugin.__set__('fs', fsMock));
+        });
+        afterEach(() => {
+            revert.forEach(func => func());
+        });
+        it('should return template for non-local template', () => {
+            return resolveTemplate('s3://mybucket/template.yml').tap(data => {
+                data.should.eql(1);
+                resolveAbsolutePathStub.should.not.be.calledOnce();
+                fsMock.statStream.should.not.be.called();
+            });
+        });
+
+        it('should return template for local template', () => {
+            return resolveTemplate('path/to/template.yml').tap(data => {
+                data.should.eql(1);
+                resolveAbsolutePathStub.should.be.calledOnce();
+                resolveAbsolutePathStub.should.be.calledWith('path/to/template.yml');
+                fsMock.statStream.should.be.called();
+                fsMock.statStream.should.be.calledWith('/new-template.yml');
+            });
+        });
+    });
+
     describe('validate()', () => {
-        let validateConfigStub, resolveAbsolutePathStub, fsMock;
+        let validateConfigStub, resolveTemplateStub;
         const revert = [];
         const validate = plugin.__get__('validate');
         beforeEach(() => {
@@ -558,13 +592,9 @@ describe('Unit tests: Drone CloudFormation', () => {
                 PLUGIN_ACCESS_KEY: '4321',
                 PLUGIN_SECRET_KEY: 'dcba'
             });
-            resolveAbsolutePathStub = sandbox.stub().returns('/new-template.yml');
-            fsMock = {
-                statStream: sandbox.stub().returns(hl.of(1))
-            };
+            resolveTemplateStub = sandbox.stub().returns(hl.of(1));
             revert.push(plugin.__set__('validateConfig', validateConfigStub));
-            revert.push(plugin.__set__('resolveAbsolutePath', resolveAbsolutePathStub));
-            revert.push(plugin.__set__('fs', fsMock));
+            revert.push(plugin.__set__('resolveTemplate', resolveTemplateStub));
         });
         afterEach(() => {
             revert.forEach(func => func());
@@ -592,22 +622,11 @@ describe('Unit tests: Drone CloudFormation', () => {
                     PLUGIN_ACCESS_KEY: '1234',
                     PLUGIN_SECRET_KEY: 'abcd'
                 });
-                resolveAbsolutePathStub.should.be.calledOnce();
-                resolveAbsolutePathStub.should.be.calledWith('omg.yml');
-                fsMock.statStream.should.be.calledOnce();
-                fsMock.statStream.should.be.calledWith('/new-template.yml');
+                resolveTemplateStub.should.be.calledOnce();
+                resolveTemplateStub.should.be.calledWith('omg.yml');
             });
         });
         it('should return env object for non-delete modes for non-local path', () => {
-            validateConfigStub = sandbox.stub().returns({
-                PLUGIN_STACKNAME: 'NOTCool',
-                PLUGIN_TEMPLATE: 's3://mybucket/t.yml',
-                PLUGIN_PARAMS: '{"hoo":"haa"}',
-                PLUGIN_ACCESS_KEY: '4321',
-                PLUGIN_SECRET_KEY: 'dcba'
-            });
-
-            revert.push(plugin.__set__('validateConfig', validateConfigStub));
             
             return validate({
                 PLUGIN_STACKNAME: 'myCoolStack',
@@ -625,14 +644,14 @@ describe('Unit tests: Drone CloudFormation', () => {
                 });
                 validateConfigStub.should.be.calledOnce();
                 validateConfigStub.should.be.calledWith({
-                    PLUGIN_STACKNAME: 'NOTCool',
-                    PLUGIN_TEMPLATE: 's3://mybucket/t.yml',
-                    PLUGIN_PARAMS: '{"hoo":"haa"}',
-                    PLUGIN_ACCESS_KEY: '4321',
-                    PLUGIN_SECRET_KEY: 'dcba'
+                    PLUGIN_ACCESS_KEY: "1234",
+                    PLUGIN_PARAMS: '{"foo":"bar"}',
+                    PLUGIN_SECRET_KEY: "abcd",
+                    PLUGIN_STACKNAME: "myCoolStack",
+                    PLUGIN_TEMPLATE: "s3://mybucket/template.yml"
                 });
-                resolveAbsolutePathStub.should.not.be.called();
-                fsMock.statStream.should.not.be.called();
+                resolveTemplateStub.should.be.called();
+                resolveTemplateStub.should.be.calledWith('omg.yml');
             });
         });
 
@@ -664,8 +683,7 @@ describe('Unit tests: Drone CloudFormation', () => {
                     PLUGIN_ACCESS_KEY: '1234',
                     PLUGIN_SECRET_KEY: 'abcd'
                 });
-                resolveAbsolutePathStub.should.not.be.called();
-                fsMock.statStream.should.not.be.called();
+                resolveTemplateStub.should.not.be.called();
             });
         });
     });

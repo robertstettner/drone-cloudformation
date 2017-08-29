@@ -9,6 +9,16 @@ let log = console.log; // eslint-disable-line no-console
 
 let resolveAbsolutePath = p => path.resolve(process.cwd(), p);
 
+let resolveTemplate = template => {
+    if (!/s3:\/\//.test(template) && !/https:\/\//.test(template)) {
+        return hl.of(template)
+            .map(resolveAbsolutePath)
+            .flatMap(fs.statStream);
+    } else {
+        return hl.of(1);
+    }
+};
+
 let convertConfig = config => R.pipe(
     R.keys,
     R.reduce((acc, val) => {
@@ -103,9 +113,7 @@ let validate = function (envs) {
         .flatMap(env =>{
             if (env.PLUGIN_MODE !== 'delete') {
                 return hl.of(env.PLUGIN_TEMPLATE)
-                    .reject(x => /s3:\/\//.test(x) || /https:\/\//.test(x))
-                    .map(resolveAbsolutePath)
-                    .flatMap(fs.statStream);
+                    .flatMap(resolveTemplate);
             }
             return hl([]);
         })
