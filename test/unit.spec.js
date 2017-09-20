@@ -93,6 +93,37 @@ describe('Unit tests: Drone CloudFormation', () => {
             });
         });
     });
+    describe('getParams()', () => {
+        const getParams = plugin.__get__('getParams');
+        let readFileStub, revert;
+
+        beforeEach(() => {
+            readFileStub = sinon.stub();
+            readFileStub.withArgs('path/to/my/file.json').returns('{"baz":"qux"}');
+            readFileStub.withArgs('file/does/not/exist.json').throws('error');
+            revert = plugin.__set__('fs', {readFileSync: readFileStub});
+        });
+
+        afterEach(() => {
+            revert();
+        });
+
+        it('should return a stringified empty JSON object by default', () => {
+            getParams(undefined).should.eql('{}');
+        });
+
+        it('should return a stringified JSON object when params are supplied as an object', () => {
+            getParams('{"foo":"bar"}').should.eql('{"foo":"bar"}');
+        });
+
+        it('should return a stringified JSON object when params are supplied as a JSON file', () => {
+            getParams('path/to/my/file.json').should.eql('{"baz":"qux"}');
+        });
+
+        it('should throw an error', () => {
+            getParams.bind(null, 'file/does/not/exist.json').should.throw('cannot read params file');
+        });
+    });
     describe('validateConfig()', () => {
         const validateConfig = plugin.__get__('validateConfig');
         it('should throw error when missing AWS secret key', () => {

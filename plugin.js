@@ -40,9 +40,24 @@ let checkIfBatch = function (env) {
     return hl.of(env);
 };
 
+let getParams = function (params = '{}') {
+    const isJsonFile = R.test(/\.json$/, params);
+    if (!isJsonFile) {
+        return params;
+    } else {
+        let file;
+        try {
+            file = fs.readFileSync(params, 'utf8');
+        } catch (ignore) {
+            throw new Error('cannot read params file');
+        }
+        return file;
+    }
+};
+
 let validateConfig = function (env) {
     env.PLUGIN_MODE = env.PLUGIN_MODE || 'createOrUpdate';
-    env.PLUGIN_PARAMS = env.PLUGIN_PARAMS || '{}';
+    env.PLUGIN_PARAMS = getParams(env.PLUGIN_PARAMS);
     const aws_access_key = env.PLUGIN_ACCESS_KEY;
     const aws_secret_key = env.PLUGIN_SECRET_KEY;
     const yml_verified = R.has('DRONE_YAML_VERIFIED', env) ? env.DRONE_YAML_VERIFIED : true;
