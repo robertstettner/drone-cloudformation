@@ -1,7 +1,7 @@
 'use strict';
 
 const hl = require('highland');
-require('should');
+const should = require('should');
 const sinon = require('sinon');
 require('should-sinon');
 const sandbox = sinon.sandbox.create();
@@ -93,35 +93,52 @@ describe('Unit tests: Drone CloudFormation', () => {
             });
         });
     });
-    describe('getParams()', () => {
-        const getParams = plugin.__get__('getParams');
-        let readFileStub, revert;
+    describe('resolveParams()', () => {
+        const resolveParams = plugin.__get__('resolveParams');
+        let readFileStub, statStub, revert;
 
         beforeEach(() => {
             readFileStub = sinon.stub();
-            readFileStub.withArgs('path/to/my/file.json').returns('{"baz":"qux"}');
-            readFileStub.withArgs('file/does/not/exist.json').throws('error');
-            revert = plugin.__set__('fs', {readFileSync: readFileStub});
+            statStub = sinon.stub();
+            readFileStub.withArgs('./path/to/my/file.json', 'utf8').returns(hl.of('{"baz":"qux"}'));
+            readFileStub.withArgs('./file/is/broken.json', 'utf8').returns(hl.fromError(new Error('error')));
+            statStub.returns(hl.of('exists'));
+            statStub.withArgs('./file/does/not/exist.json').returns(hl.fromError(new Error('error')));
+            revert = plugin.__set__('fs', {readFileStream: readFileStub, statStream: statStub});
         });
 
         afterEach(() => {
             revert();
         });
 
-        it('should return a stringified empty JSON object by default', () => {
-            getParams(undefined).should.eql('{}');
+        it('should ignore params if they are undefined', () => {
+            resolveParams({}).apply(res => {
+                should.not.exist(res.PLUGIN_PARAMS);
+            });
         });
 
         it('should return a stringified JSON object when params are supplied as an object', () => {
-            getParams('{"foo":"bar"}').should.eql('{"foo":"bar"}');
+            resolveParams({PLUGIN_PARAMS: '{"foo":"bar"}'}).apply(res => {
+                res.PLUGIN_PARAMS.should.equal('{"foo":"bar"}');
+            });
         });
 
         it('should return a stringified JSON object when params are supplied as a JSON file', () => {
-            getParams('path/to/my/file.json').should.eql('{"baz":"qux"}');
+            resolveParams({PLUGIN_PARAMS: './path/to/my/file.json'}).apply(res => {
+                res.PLUGIN_PARAMS.should.equal('{"baz":"qux"}');
+            });
         });
 
-        it('should throw an error', () => {
-            getParams.bind(null, 'file/does/not/exist.json').should.throw('cannot read params file');
+        it('should push an error if file cannot be found', () => {
+            resolveParams({PLUGIN_PARAMS: './file/does/not/exist.json'}).toCallback(err => {
+                err.message.should.equal('params file could not be resolved');
+            });
+        });
+
+        it('should push an error if file cannot be read', () => {
+            resolveParams({PLUGIN_PARAMS: './file/is/broken.json'}).toCallback(err => {
+                err.message.should.equal('params file could not be resolved');
+            });
         });
     });
     describe('validateConfig()', () => {
@@ -164,7 +181,8 @@ describe('Unit tests: Drone CloudFormation', () => {
         it('should return env object with default params when all is valid', () => {
             validateConfig({
                 PLUGIN_STACKNAME: 'myStack',
-                PLUGIN_TEMPLATE: 'path/to/template.yml'
+                PLUGIN_TEMPLATE: 'path/to/template.yml',
+                PLUGIN_PARAMS: '{}'
             }).should.eql({
                 PLUGIN_MODE: 'createOrUpdate',
                 PLUGIN_STACKNAME: 'myStack',
