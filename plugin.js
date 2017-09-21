@@ -43,6 +43,7 @@ let checkIfBatch = function (env) {
 let resolveParams = function (env) {
     const params = env.PLUGIN_PARAMS;
     const isJsonFile = R.test(/\.json$/, params);
+
     if (isJsonFile) {
         return hl.of(params)
             .map(resolveAbsolutePath)
@@ -51,6 +52,13 @@ let resolveParams = function (env) {
             .map(str => R.assoc('PLUGIN_PARAMS', str, env))
             .errors((err, push) => push(new Error('params file could not be resolved')));
     } else {
+        if (!R.isNil(params) && typeof params !== 'object' && params.constructor !== Object) {
+            try {
+                JSON.parse(params);
+            } catch (ignore) {
+                return hl.fromError(new Error('cannot parse params data'));
+            }
+        }
         return hl.of(env);
     }
 };
@@ -85,14 +93,6 @@ let validateConfig = function (env) {
         throw new Error('template not specified');
     }
 
-    if (!R.isNil(env.PLUGIN_PARAMS) && typeof env.PLUGIN_PARAMS !== 'object' && env.PLUGIN_PARAMS.constructor !== Object) {
-        try {
-            JSON.parse(env.PLUGIN_PARAMS);
-        } catch (ignore) {
-            throw new Error('cannot parse params data');
-        }
-    }
-
     return env;
 };
 
@@ -123,7 +123,6 @@ let execute = function (env) {
 
 let validate = function (envs) {
     return hl.of(envs)
-        .flatMap(resolveParams)
         .flatMap(envs => {
             return hl.of(validateConfig(envs))
                 .flatMap(env =>{
@@ -131,6 +130,12 @@ let validate = function (envs) {
                         return hl.of(env.PLUGIN_TEMPLATE)
                             .flatMap(resolveTemplate)
                             .flatMap(() => hl.of(envs));
+                    }
+                    return hl.of(envs);
+                })
+                .flatMap(env => {
+                    if (env.PLUGIN_MODE === 'createOrUpdate') {
+                        return resolveParams(env);
                     }
                     return hl.of(envs);
                 });
