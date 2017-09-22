@@ -40,9 +40,31 @@ let checkIfBatch = function (env) {
     return hl.of(env);
 };
 
+let resolveParams = function (env) {
+    const params = env.PLUGIN_PARAMS;
+    const isJsonFile = R.test(/\.json$/, params);
+
+    if (isJsonFile) {
+        return hl.of(params)
+            .map(resolveAbsolutePath)
+            .flatMap(fs.statStream)
+            .flatMap(fs.readFileStream(params, 'utf8'))
+            .map(str => R.assoc('PLUGIN_PARAMS', str, env))
+            .errors((err, push) => push(new Error('params file could not be resolved')));
+    } else {
+        if (!R.isNil(params) && typeof params !== 'object' && params.constructor !== Object) {
+            try {
+                JSON.parse(params);
+            } catch (ignore) {
+                return hl.fromError(new Error('cannot parse params data'));
+            }
+        }
+        return hl.of(env);
+    }
+};
+
 let validateConfig = function (env) {
     env.PLUGIN_MODE = env.PLUGIN_MODE || 'createOrUpdate';
-    env.PLUGIN_PARAMS = env.PLUGIN_PARAMS || '{}';
     const aws_access_key = env.PLUGIN_ACCESS_KEY;
     const aws_secret_key = env.PLUGIN_SECRET_KEY;
     const yml_verified = R.has('DRONE_YAML_VERIFIED', env) ? env.DRONE_YAML_VERIFIED : true;
@@ -69,14 +91,6 @@ let validateConfig = function (env) {
 
     if (!env.PLUGIN_TEMPLATE && env.PLUGIN_MODE !== 'delete') {
         throw new Error('template not specified');
-    }
-
-    if (typeof env.PLUGIN_PARAMS !== 'object' && env.PLUGIN_PARAMS.constructor !== Object) {
-        try {
-            JSON.parse(env.PLUGIN_PARAMS);
-        } catch (ignore) {
-            throw new Error('cannot parse params data');
-        }
     }
 
     return env;
@@ -109,15 +123,23 @@ let execute = function (env) {
 
 let validate = function (envs) {
     return hl.of(envs)
-        .flatMap(env => hl.of(validateConfig(env)))
-        .flatMap(env =>{
-            if (env.PLUGIN_MODE !== 'delete') {
-                return hl.of(env.PLUGIN_TEMPLATE)
-                    .flatMap(resolveTemplate);
-            }
-            return hl([]);
-        })
-        .flatMap(() => hl.of(envs));
+        .flatMap(envs => {
+            return hl.of(validateConfig(envs))
+                .flatMap(env =>{
+                    if (env.PLUGIN_MODE !== 'delete') {
+                        return hl.of(env.PLUGIN_TEMPLATE)
+                            .flatMap(resolveTemplate)
+                            .flatMap(() => hl.of(envs));
+                    }
+                    return hl.of(envs);
+                })
+                .flatMap(env => {
+                    if (env.PLUGIN_MODE === 'createOrUpdate') {
+                        return resolveParams(env);
+                    }
+                    return hl.of(envs);
+                });
+        });
 };
 
 let keepAliveOutput = ms => setInterval(() => log(`[${new Date().toISOString().replace(/.*T(\d{2}:\d{2}:\d{2})\..*/, '$1')}] ...`), ms);

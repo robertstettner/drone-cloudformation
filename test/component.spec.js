@@ -13,7 +13,7 @@ describe.only('Component tests: Drone CloudFormation', function () {
     this.timeout(10000);
     let processMock, cfnStub, createOrUpdateStub;
     const revert = [];
-    describe('single config', () => {
+    describe('single config with params passed directly', () => {
         beforeEach(() => {
             processMock = {
                 cwd: process.cwd,
@@ -21,6 +21,50 @@ describe.only('Component tests: Drone CloudFormation', function () {
                     PLUGIN_STACKNAME: 'myStackname',
                     PLUGIN_TEMPLATE: './test/fixtures/template.yml',
                     PLUGIN_PARAMS: '{"CodeVersion":"54"}'
+                },
+                exit: sandbox.stub()
+            };
+            cfnStub = sandbox.stub();
+            cfnStub.prototype.createOrUpdate = sandbox.stub().returns(Promise.resolve(654));
+            revert.push(plugin.__set__('process', processMock));
+            revert.push(plugin.__set__('cfn', cfnStub));
+        });
+        afterEach(() => {
+            revert.forEach(func => func());
+            sandbox.reset();
+        });
+        it('should invoke process.exit with 0', done => {
+            plugin.init();
+            setTimeout(() => {
+                cfnStub.should.be.calledOnce();
+                // cfnStub.should.be.calledWith(123);
+                processMock.exit.should.be.calledOnce();
+                processMock.exit.should.be.calledWith(0);
+                done();
+            }, 100);
+        });
+        it('should invoke process.exit with 1', done => {
+            cfnStub = sandbox.stub();
+            cfnStub.prototype.createOrUpdate = sandbox.stub().returns(Promise.reject(new Error('craps out')));
+            revert.push(plugin.__set__('cfn', cfnStub));
+
+            plugin.init();
+            setTimeout(() => {
+                cfnStub.should.have.calledOnce();
+                processMock.exit.should.be.calledOnce();
+                processMock.exit.should.be.calledWith(1);
+                done();
+            }, 100);
+        });
+    });
+    describe('single config with params passed in JSON file', () => {
+        beforeEach(() => {
+            processMock = {
+                cwd: process.cwd,
+                env: {
+                    PLUGIN_STACKNAME: 'myStackname',
+                    PLUGIN_TEMPLATE: './test/fixtures/template.yml',
+                    PLUGIN_PARAMS: './test/fixtures/params.json'
                 },
                 exit: sandbox.stub()
             };

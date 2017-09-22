@@ -14,7 +14,7 @@ The following parameters are used to configure the plugin:
   Not needed for the `validate` mode.
 - `template`: the path location of the template file or S3 url. Required.
   Not needed for the `delete` mode.
-- `params`: object of parameters to feed into the template. Optional.
+- `params`: object of parameters or path of JSON file of parameters to feed into the template. Optional.
   Not needed for `validate` and `delete` modes.
 - `region`: the AWS region to deploy to. Defaults to `eu-west-1`.
 - `access_key`: the AWS access key. Optional.

@@ -1,7 +1,7 @@
 'use strict';
 
 const hl = require('highland');
-require('should');
+const should = require('should');
 const sinon = require('sinon');
 require('should-sinon');
 const sandbox = sinon.sandbox.create();
@@ -93,6 +93,67 @@ describe('Unit tests: Drone CloudFormation', () => {
             });
         });
     });
+    describe('resolveParams()', () => {
+        const resolveParams = plugin.__get__('resolveParams');
+        let readFileStub, statStub, revert;
+
+        beforeEach(() => {
+            readFileStub = sinon.stub();
+            statStub = sinon.stub();
+            readFileStub.withArgs('./path/to/my/file.json', 'utf8').returns(hl.of('{"baz":"qux"}'));
+            readFileStub.withArgs('./file/is/broken.json', 'utf8').returns(hl.fromError(new Error('error')));
+            statStub.returns(hl.of('exists'));
+            statStub.withArgs('./file/does/not/exist.json').returns(hl.fromError(new Error('error')));
+            revert = plugin.__set__('fs', {readFileStream: readFileStub, statStream: statStub});
+        });
+
+        afterEach(() => {
+            revert();
+        });
+
+        it('should ignore params if they are undefined', () =>
+            resolveParams({}).tap(res => {
+                should.not.exist(res.PLUGIN_PARAMS);
+            })
+        );
+
+        it('should return a stringified JSON object when params are supplied as an object', () =>
+            resolveParams({PLUGIN_PARAMS: '{"foo":"bar"}'}).tap(res => {
+                res.PLUGIN_PARAMS.should.equal('{"foo":"bar"}');
+            })
+        );
+
+        it('should return a stringified JSON object when params are supplied as a JSON file', () =>
+            resolveParams({PLUGIN_PARAMS: './path/to/my/file.json'}).tap(res => {
+                res.PLUGIN_PARAMS.should.equal('{"baz":"qux"}');
+            })
+        );
+
+        it('should push an error if file cannot be found', () =>
+            resolveParams({PLUGIN_PARAMS: './file/does/not/exist.json'}).errors(err => {
+                err.message.should.equal('params file could not be resolved');
+            })
+        );
+
+        it('should push an error if file cannot be read', () =>
+            resolveParams({PLUGIN_PARAMS: './file/is/broken.json'}).errors(err => {
+                err.message.should.equal('params file could not be resolved');
+            })
+        );
+
+        it('should push an error if file cannot be read', () =>
+            resolveParams({PLUGIN_PARAMS: './file/is/broken.json'}).errors(err => {
+                err.message.should.equal('params file could not be resolved');
+            })
+        );
+
+        it('should push an error if params is not correct JSON', () =>
+            resolveParams({PLUGIN_PARAMS: '{not correct'}).errors(err => {
+                err.message.should.equal('cannot parse params data');
+            })
+        );
+
+    });
     describe('validateConfig()', () => {
         const validateConfig = plugin.__get__('validateConfig');
         it('should throw error when missing AWS secret key', () => {
@@ -123,17 +184,12 @@ describe('Unit tests: Drone CloudFormation', () => {
                 PLUGIN_STACKNAME: 'myStack'
             }).should.throw('template not specified');
         });
-        it('should throw error when cannot parse params data', () => {
-            validateConfig.bind(null, {
-                PLUGIN_STACKNAME: 'myStack',
-                PLUGIN_TEMPLATE: 'path/to/template.yml',
-                PLUGIN_PARAMS: '{'
-            }).should.throw('cannot parse params data');
-        });
+
         it('should return env object with default params when all is valid', () => {
             validateConfig({
                 PLUGIN_STACKNAME: 'myStack',
-                PLUGIN_TEMPLATE: 'path/to/template.yml'
+                PLUGIN_TEMPLATE: 'path/to/template.yml',
+                PLUGIN_PARAMS: '{}'
             }).should.eql({
                 PLUGIN_MODE: 'createOrUpdate',
                 PLUGIN_STACKNAME: 'myStack',
@@ -581,7 +637,7 @@ describe('Unit tests: Drone CloudFormation', () => {
     });
 
     describe('validate()', () => {
-        let validateConfigStub, resolveTemplateStub;
+        let validateConfigStub, resolveTemplateStub, resolveParamsStub;
         const revert = [];
         const validate = plugin.__get__('validate');
         beforeEach(() => {
@@ -592,9 +648,17 @@ describe('Unit tests: Drone CloudFormation', () => {
                 PLUGIN_ACCESS_KEY: '4321',
                 PLUGIN_SECRET_KEY: 'dcba'
             });
+            resolveParamsStub = sandbox.stub().returns(hl.of({
+                PLUGIN_STACKNAME: 'NOTCool',
+                PLUGIN_TEMPLATE: 'omg.yml',
+                PLUGIN_PARAMS: '{"hoo":"haa"}',
+                PLUGIN_ACCESS_KEY: '4321',
+                PLUGIN_SECRET_KEY: 'dcba'
+            }));
             resolveTemplateStub = sandbox.stub().returns(hl.of(1));
             revert.push(plugin.__set__('validateConfig', validateConfigStub));
             revert.push(plugin.__set__('resolveTemplate', resolveTemplateStub));
+            revert.push(plugin.__set__('resolveParams', resolveParamsStub));
         });
         afterEach(() => {
             revert.forEach(func => func());
@@ -684,6 +748,49 @@ describe('Unit tests: Drone CloudFormation', () => {
                     PLUGIN_SECRET_KEY: 'abcd'
                 });
                 resolveTemplateStub.should.not.be.called();
+                resolveParamsStub.should.not.be.called();
+            });
+        });
+
+        it('should return env object for createOrUpdate mode', () => {
+            validateConfigStub = sandbox.stub().returns({
+                PLUGIN_TEMPLATE: 'omg.yml',
+                PLUGIN_MODE: 'createOrUpdate',
+                PLUGIN_STACKNAME: 'NOTCool',
+                PLUGIN_ACCESS_KEY: '4321',
+                PLUGIN_SECRET_KEY: 'dcba'
+            });
+            revert.push(plugin.__set__('validateConfig', validateConfigStub));
+
+            return validate({
+                PLUGIN_MODE: 'createOrUpdate',
+                PLUGIN_STACKNAME: 'myCoolStack',
+                PLUGIN_ACCESS_KEY: '1234',
+                PLUGIN_SECRET_KEY: 'abcd'
+            }).tap(data => {
+                data.should.eql({
+                    PLUGIN_STACKNAME: 'NOTCool',
+                    PLUGIN_TEMPLATE: 'omg.yml',
+                    PLUGIN_PARAMS: '{"hoo":"haa"}',
+                    PLUGIN_ACCESS_KEY: '4321',
+                    PLUGIN_SECRET_KEY: 'dcba'
+                });
+                validateConfigStub.should.be.calledOnce();
+                validateConfigStub.should.be.calledWith({
+                    PLUGIN_MODE: 'createOrUpdate',
+                    PLUGIN_STACKNAME: 'myCoolStack',
+                    PLUGIN_ACCESS_KEY: '1234',
+                    PLUGIN_SECRET_KEY: 'abcd'
+                });
+                resolveTemplateStub.should.be.calledOnce();
+                resolveTemplateStub.should.be.calledWith('omg.yml');
+                resolveParamsStub.should.be.calledOnce();
+                resolveParamsStub.should.be.calledWith({
+                    PLUGIN_MODE: 'createOrUpdate',
+                    PLUGIN_STACKNAME: 'myCoolStack',
+                    PLUGIN_ACCESS_KEY: '1234',
+                    PLUGIN_SECRET_KEY: 'abcd'
+                });
             });
         });
     });
