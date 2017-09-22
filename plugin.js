@@ -48,7 +48,7 @@ let resolveParams = function (env) {
         return hl.of(params)
             .map(resolveAbsolutePath)
             .flatMap(fs.statStream)
-            .flatMap(fs.readFileStream(params, 'utf8'))
+            .flatMap(() => fs.readFileStream(params, 'utf8'))
             .map(str => R.assoc('PLUGIN_PARAMS', str, env))
             .errors((err, push) => push(new Error('params file could not be resolved')));
     } else {
