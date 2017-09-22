@@ -111,7 +111,9 @@ let execute = function (env) {
     }
     if (R.contains(env.PLUGIN_MODE, ['createOrUpdate','create'])) {
         config.capabilities = ['CAPABILITY_NAMED_IAM', 'CAPABILITY_IAM'];
-        config.cfParams = typeof env.PLUGIN_PARAMS === 'object' && env.PLUGIN_PARAMS.constructor === Object ? env.PLUGIN_PARAMS : JSON.parse(env.PLUGIN_PARAMS);
+        if (!R.isNil(env.PLUGIN_PARAMS)) {
+            config.cfParams = typeof env.PLUGIN_PARAMS === 'object' && env.PLUGIN_PARAMS.constructor === Object ? env.PLUGIN_PARAMS : JSON.parse(env.PLUGIN_PARAMS);
+        }
     }
     if (env.PLUGIN_ACCESS_KEY && env.PLUGIN_SECRET_KEY) {
         config.awsConfig.accessKeyId = env.PLUGIN_ACCESS_KEY;
@@ -134,7 +136,7 @@ let validate = function (envs) {
                     return hl.of(envs);
                 })
                 .flatMap(env => {
-                    if (env.PLUGIN_MODE === 'createOrUpdate') {
+                    if (R.contains(env.PLUGIN_MODE, ['createOrUpdate','create'])) {
                         return resolveParams(env);
                     }
                     return hl.of(envs);

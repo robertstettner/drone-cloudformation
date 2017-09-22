@@ -243,7 +243,6 @@ describe('Unit tests: Drone CloudFormation', () => {
             it('should return a promise returning function', () => {
                 execute({
                     PLUGIN_MODE: 'createOrUpdate',
-                    PLUGIN_PARAMS: '{}',
                     PLUGIN_STACKNAME: 'myStack',
                     PLUGIN_TEMPLATE: 'path/to/template.yml'
                 })();
@@ -261,7 +260,6 @@ describe('Unit tests: Drone CloudFormation', () => {
                         "CAPABILITY_NAMED_IAM",
                         "CAPABILITY_IAM"
                     ],
-                    cfParams: {},
                     awsConfig: {
                         region: 'eu-west-1'
                     }
@@ -635,7 +633,6 @@ describe('Unit tests: Drone CloudFormation', () => {
             });
         });
     });
-
     describe('validate()', () => {
         let validateConfigStub, resolveTemplateStub, resolveParamsStub;
         const revert = [];

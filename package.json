@@ -15,14 +15,14 @@
   "license": "MIT",
   "devDependencies": {
     "coveralls": "2.13.1",
-    "eslint": "4.2.0",
-    "mocha": "3.4.2",
+    "eslint": "4.7.2",
+    "mocha": "3.5.3",
     "mocha-plugin-highland": "0.0.2",
-    "nyc": "11.0.3",
+    "nyc": "11.2.1",
     "rewire": "2.5.2",
-    "should": "11.2.1",
-    "should-sinon": "0.0.5",
-    "sinon": "2.3.8"
+    "should": "13.1.0",
+    "should-sinon": "0.0.6",
+    "sinon": "3.3.0"
   },
   "dependencies": {
     "cfn": "nchinan/cfn#template-url-support",
