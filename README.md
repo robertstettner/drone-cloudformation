@@ -112,3 +112,10 @@ pipeline:
       - mode: validate
         template: templates/app.yml
 ```
+
+## Further reading
+
+* [Contributing](CONTRIBUTING.md)
+* [Change Log](CHANGELOG.md)
+* [Road Map](ROADMAP.md)
+* [License](LICENSE.txt)
