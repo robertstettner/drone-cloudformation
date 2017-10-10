@@ -14,19 +14,19 @@
   "author": "Robert Stettner (https://github.com/robertstettner)",
   "license": "MIT",
   "devDependencies": {
-    "coveralls": "2.13.1",
-    "eslint": "4.7.2",
-    "mocha": "3.5.3",
+    "coveralls": "3.0.0",
+    "eslint": "4.8.0",
+    "mocha": "4.0.1",
     "mocha-plugin-highland": "0.0.2",
     "nyc": "11.2.1",
     "rewire": "2.5.2",
-    "should": "13.1.0",
+    "should": "13.1.2",
     "should-sinon": "0.0.6",
-    "sinon": "3.3.0"
+    "sinon": "4.0.1"
   },
   "dependencies": {
     "cfn": "nchinan/cfn#template-url-support",
     "highland": "2.11.1",
-    "ramda": "0.24.1"
+    "ramda": "0.25.0"
   }
 }
