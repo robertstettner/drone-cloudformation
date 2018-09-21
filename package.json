@@ -25,7 +25,7 @@
     "sinon": "4.0.1"
   },
   "dependencies": {
-    "cfn": "nchinan/cfn#template-url-support",
+    "cfn": "github:svozza/cfn#4ca3ceb446fcff944a52cd0811476f7e6e126650",
     "highland": "2.11.1",
     "ramda": "0.25.0"
   }

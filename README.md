@@ -2,7 +2,7 @@
 [![Build Status](https://travis-ci.org/robertstettner/drone-cloudformation.svg?branch=master)](https://travis-ci.org/robertstettner/drone-cloudformation)
 [![Coverage Status](https://coveralls.io/repos/github/robertstettner/drone-cloudformation/badge.svg?branch=master)](https://coveralls.io/github/robertstettner/drone-cloudformation?branch=master)
 
-Drone plugin for creating/updating or deleting AWS CloudFormation stacks 
+Drone plugin for creating/updating or deleting AWS CloudFormation stacks
 and validating AWS CloudFormation templates.
 
 ## Configuration
@@ -15,6 +15,9 @@ The following parameters are used to configure the plugin:
 - `template`: the path location of the template file or S3 url. Required.
   Not needed for the `delete` mode.
 - `params`: object of parameters or path of JSON file of parameters to feed into the template. Optional.
+  Not needed for `validate` and `delete` modes.
+- `secret_params`: object of parameters stored as Drone secrets to feed
+  into the template. Optional.
   Not needed for `validate` and `delete` modes.
 - `region`: the AWS region to deploy to. Defaults to `eu-west-1`.
 - `access_key`: the AWS access key. Optional.
@@ -46,6 +49,26 @@ pipeline:
     params:
       Version: ${DRONE_BUILD_NUMBER}
       Environment: ${DRONE_DEPLOY_TO}
+    when:
+      event: deployment
+```
+
+Deployment example with secrets:
+```yaml
+pipeline:
+  ...
+  deploy:
+    image: robertstettner/drone-cloudformation
+    pull: true
+    stackname: my-awesome-stack-${DRONE_BRANCH}
+    template: templates/stack.yml
+    secret_params:
+      - source: DB_PASSWORD
+        target: DbPassword
+    params:
+      Version: ${DRONE_BUILD_NUMBER}
+      Environment: ${DRONE_DEPLOY_TO}
+    secrets: [DB_PASSWORD]
     when:
       event: deployment
 ```

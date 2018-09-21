@@ -4,3 +4,4 @@ test/
 .nycrc
 .eslint*
 scripts/
+node_modules
