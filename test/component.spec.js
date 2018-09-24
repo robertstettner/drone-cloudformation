@@ -100,6 +100,57 @@ describe('Component tests: Drone CloudFormation', function () {
             }, 100);
         });
     });
+    describe('single config with secret params passed directly', () => {
+        beforeEach(() => {
+            processMock = {
+                cwd: process.cwd,
+                env: {
+                    FOO: 'envvar',
+                    PLUGIN_STACKNAME: 'myStackname',
+                    PLUGIN_TEMPLATE: './test/fixtures/template.yml',
+                    PLUGIN_SECRET_PARAMS: '[{"source": "FOO", "target": "bar"}]'
+                },
+                exit: sandbox.stub()
+            };
+            cfnStub = sandbox.stub();
+            cfnStub.prototype.createOrUpdate = sandbox.stub().returns(Promise.resolve(654));
+            revert.push(plugin.__set__('process', processMock));
+            revert.push(plugin.__set__('cfn', cfnStub));
+        });
+        afterEach(() => {
+            revert.forEach(func => func());
+            sandbox.reset();
+        });
+        it('should invoke process.exit with 0', done => {
+            plugin.init();
+            setTimeout(() => {
+                cfnStub.should.be.calledOnce();
+                cfnStub.getCall(0).should.be.calledWith({
+                    awsConfig: {region: "eu-west-1"},
+                    capabilities: ["CAPABILITY_NAMED_IAM", "CAPABILITY_IAM"],
+                    cfParams: {bar: "envvar"},
+                    name: "myStackname",
+                    template: `${__dirname}/fixtures/template.yml`
+                });
+                processMock.exit.should.be.calledOnce();
+                processMock.exit.should.be.calledWith(0);
+                done();
+            }, 100);
+        });
+        it('should invoke process.exit with 1', done => {
+            cfnStub = sandbox.stub();
+            cfnStub.prototype.createOrUpdate = sandbox.stub().returns(Promise.reject(new Error('craps out')));
+            revert.push(plugin.__set__('cfn', cfnStub));
+
+            plugin.init();
+            setTimeout(() => {
+                cfnStub.should.have.calledOnce();
+                processMock.exit.should.be.calledOnce();
+                processMock.exit.should.be.calledWith(1);
+                done();
+            }, 100);
+        });
+    });
     describe('single config with params passed in JSON file', () => {
         beforeEach(() => {
             processMock = {
@@ -125,6 +176,58 @@ describe('Component tests: Drone CloudFormation', function () {
             setTimeout(() => {
                 cfnStub.should.be.calledOnce();
                 // cfnStub.should.be.calledWith(123);
+                processMock.exit.should.be.calledOnce();
+                processMock.exit.should.be.calledWith(0);
+                done();
+            }, 100);
+        });
+        it('should invoke process.exit with 1', done => {
+            cfnStub = sandbox.stub();
+            cfnStub.prototype.createOrUpdate = sandbox.stub().returns(Promise.reject(new Error('craps out')));
+            revert.push(plugin.__set__('cfn', cfnStub));
+
+            plugin.init();
+            setTimeout(() => {
+                cfnStub.should.have.calledOnce();
+                processMock.exit.should.be.calledOnce();
+                processMock.exit.should.be.calledWith(1);
+                done();
+            }, 100);
+        });
+    });
+    describe('single config with params passed in JSON file with secrets', () => {
+        beforeEach(() => {
+            processMock = {
+                cwd: process.cwd,
+                env: {
+                    FOO: 'envvar',
+                    PLUGIN_STACKNAME: 'myStackname',
+                    PLUGIN_TEMPLATE: './test/fixtures/template.yml',
+                    PLUGIN_PARAMS: './test/fixtures/params.json',
+                    PLUGIN_SECRET_PARAMS: '[{"source": "FOO", "target": "bar"}]'
+                },
+                exit: sandbox.stub()
+            };
+            cfnStub = sandbox.stub();
+            cfnStub.prototype.createOrUpdate = sandbox.stub().returns(Promise.resolve(654));
+            revert.push(plugin.__set__('process', processMock));
+            revert.push(plugin.__set__('cfn', cfnStub));
+        });
+        afterEach(() => {
+            revert.forEach(func => func());
+            sandbox.reset();
+        });
+        it('should invoke process.exit with 0', done => {
+            plugin.init();
+            setTimeout(() => {
+                cfnStub.should.be.calledOnce();
+                cfnStub.getCall(0).should.be.calledWith({
+                    awsConfig: {region: "eu-west-1"},
+                    capabilities: ["CAPABILITY_NAMED_IAM", "CAPABILITY_IAM"],
+                    cfParams: {bar: "envvar", AppVersion: 4},
+                    name: "myStackname",
+                    template: `${__dirname}/fixtures/template.yml`
+                });
                 processMock.exit.should.be.calledOnce();
                 processMock.exit.should.be.calledWith(0);
                 done();
@@ -181,6 +284,7 @@ describe('Component tests: Drone CloudFormation', function () {
                         name: "lambda1",
                         template: `${__dirname}/fixtures/template.yml`
                     });
+
                     cfnStub.getCall(1).should.be.calledWith({
                         awsConfig: {region: "eu-west-1"},
                         capabilities: ["CAPABILITY_NAMED_IAM", "CAPABILITY_IAM"],
@@ -188,6 +292,7 @@ describe('Component tests: Drone CloudFormation', function () {
                         name: "lambda2",
                         template: `${__dirname}/fixtures/template.yml`
                     });
+
                     cfnStub.getCall(2).should.be.calledWith({
                         awsConfig: {region: "eu-west-1"},
                         capabilities: ["CAPABILITY_NAMED_IAM", "CAPABILITY_IAM"],

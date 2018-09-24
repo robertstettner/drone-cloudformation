@@ -1,11 +1,13 @@
-FROM kkarczmarczyk/node-yarn:6.9
+FROM node:10.11-slim
 
 WORKDIR /plugin
 
-COPY . /plugin
+COPY package.json .
 
 ENV NODE_ENV production
 
 RUN npm prune && yarn install
+
+COPY . .
 
 ENTRYPOINT node /plugin/index.js

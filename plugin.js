@@ -29,38 +29,60 @@ let convertConfig = config => R.pipe(
 
 let checkIfBatch = function (env) {
     if (env.PLUGIN_BATCH) {
-        let json;
-        try {
-            json = JSON.parse(env.PLUGIN_BATCH);
-        } catch (ignore) {
-            return hl.fromError(new Error('cannot parse batch configurations'));
-        }
-        return hl(json).map(convertConfig);
+        return hl.of(env.PLUGIN_BATCH)
+            .map(JSON.parse)
+            .errors((err, push) => push(new Error('cannot parse batch configurations')))
+            .sequence()
+            .map(convertConfig);
     }
     return hl.of(env);
 };
 
 let resolveParams = function (env) {
-    const params = env.PLUGIN_PARAMS;
-    const isJsonFile = R.test(/\.json$/, params);
-
-    if (isJsonFile) {
-        return hl.of(params)
-            .map(resolveAbsolutePath)
-            .flatMap(fs.statStream)
-            .flatMap(() => fs.readFileStream(params, 'utf8'))
-            .map(str => R.assoc('PLUGIN_PARAMS', str, env))
-            .errors((err, push) => push(new Error('params file could not be resolved')));
-    } else {
-        if (!R.isNil(params) && typeof params !== 'object' && params.constructor !== Object) {
-            try {
-                JSON.parse(params);
-            } catch (ignore) {
-                return hl.fromError(new Error('cannot parse params data'));
+    return hl.of(env.PLUGIN_PARAMS)
+        .flatMap(params => {
+            if (R.test(/\.json$/, params)) {
+                return hl.of(params)
+                    .map(resolveAbsolutePath)
+                    .flatMap(fs.statStream)
+                    .flatMap(() => fs.readFileStream(params, 'utf8'))
+                    .errors((err, push) => push(new Error('params file could not be resolved')));
             }
-        }
-        return hl.of(env);
+            return hl.of(params);
+        })
+        .tap(params => {
+            if (!R.isNil(params) && typeof params !== 'object' && params.constructor !== Object) {
+                try {
+                    JSON.parse(params);
+                } catch (ignore) {
+                    throw new Error('cannot parse params data');
+                }
+            }
+        })
+        .map(R.assoc('PLUGIN_PARAMS', R.__, env));
+};
+
+let convertSecretParams = function (env, secrets) {
+    return R.reduce((acc, val) => {
+        acc[val.target] = env[val.source];
+        return acc;
+    }, {}, secrets);
+};
+
+let resolveSecretParams = function (env) {
+    const json = R.defaultTo('[]', env.PLUGIN_SECRET_PARAMS);
+    // no need use try/catch as badly formed yaml gets rejected by Drone
+    const secrets = JSON.parse(json);
+    if(!Array.isArray(secrets)) {
+        throw new Error('secret_params must be an array');
     }
+
+    const missingEnvVars = R.reject(R.has(R.__, env), secrets.map(R.prop('source')));
+    if(!R.isEmpty(missingEnvVars)) {
+        throw new Error(`The following secrets are missing: ${missingEnvVars.join(', ')}. Ensure you have included the secrets key in this build step.`);
+    }
+
+    return R.assoc('PLUGIN_SECRET_PARAMS', convertSecretParams(env, secrets), env);
 };
 
 let validateConfig = function (env) {
@@ -96,6 +118,29 @@ let validateConfig = function (env) {
     return env;
 };
 
+let validate = function (envs) {
+    return hl.of(envs)
+        .flatMap(envs => {
+            return hl.of(validateConfig(envs))
+                .flatMap(env =>{
+                    if (env.PLUGIN_MODE !== 'delete') {
+                        return hl.of(env.PLUGIN_TEMPLATE)
+                            .flatMap(resolveTemplate)
+                            .flatMap(() => hl.of(envs));
+                    }
+                    return hl.of(envs);
+                })
+                .flatMap(env => {
+                    if (R.contains(env.PLUGIN_MODE, ['createOrUpdate','create'])) {
+
+                        return resolveParams(env)
+                            .map(resolveSecretParams);
+                    }
+                    return hl.of(envs);
+                });
+        });
+};
+
 let execute = function (env) {
     const config = {
         awsConfig: {
@@ -111,37 +156,15 @@ let execute = function (env) {
     }
     if (R.contains(env.PLUGIN_MODE, ['createOrUpdate','create'])) {
         config.capabilities = ['CAPABILITY_NAMED_IAM', 'CAPABILITY_IAM'];
-        if (!R.isNil(env.PLUGIN_PARAMS)) {
-            config.cfParams = typeof env.PLUGIN_PARAMS === 'object' && env.PLUGIN_PARAMS.constructor === Object ? env.PLUGIN_PARAMS : JSON.parse(env.PLUGIN_PARAMS);
-        }
+        const rawParams = R.defaultTo({}, env.PLUGIN_PARAMS);
+        const params = typeof rawParams === 'object' && rawParams.constructor === Object ? rawParams : JSON.parse(rawParams);
+        config.cfParams =  R.merge(params, env.PLUGIN_SECRET_PARAMS);
     }
     if (env.PLUGIN_ACCESS_KEY && env.PLUGIN_SECRET_KEY) {
         config.awsConfig.accessKeyId = env.PLUGIN_ACCESS_KEY;
         config.awsConfig.secretAccessKey = env.PLUGIN_SECRET_KEY;
     }
-
     return () => (new cfn(config))[env.PLUGIN_MODE]();
-};
-
-let validate = function (envs) {
-    return hl.of(envs)
-        .flatMap(envs => {
-            return hl.of(validateConfig(envs))
-                .flatMap(env =>{
-                    if (env.PLUGIN_MODE !== 'delete') {
-                        return hl.of(env.PLUGIN_TEMPLATE)
-                            .flatMap(resolveTemplate)
-                            .flatMap(() => hl.of(envs));
-                    }
-                    return hl.of(envs);
-                })
-                .flatMap(env => {
-                    if (R.contains(env.PLUGIN_MODE, ['createOrUpdate','create'])) {
-                        return resolveParams(env);
-                    }
-                    return hl.of(envs);
-                });
-        });
 };
 
 let keepAliveOutput = ms => setInterval(() => log(`[${new Date().toISOString().replace(/.*T(\d{2}:\d{2}:\d{2})\..*/, '$1')}] ...`), ms);

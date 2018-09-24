@@ -102,6 +102,7 @@ describe('Unit tests: Drone CloudFormation', () => {
             statStub = sinon.stub();
             readFileStub.withArgs('./path/to/my/file.json', 'utf8').returns(hl.of('{"baz":"qux"}'));
             readFileStub.withArgs('./file/is/broken.json', 'utf8').returns(hl.fromError(new Error('error')));
+            readFileStub.withArgs('./path/is/invalid.json', 'utf8').returns(hl.of('{baz:"qux"}'));
             statStub.returns(hl.of('exists'));
             statStub.withArgs('./file/does/not/exist.json').returns(hl.fromError(new Error('error')));
             revert = plugin.__set__('fs', {readFileStream: readFileStub, statStream: statStub});
@@ -119,7 +120,7 @@ describe('Unit tests: Drone CloudFormation', () => {
 
         it('should return a stringified JSON object when params are supplied as an object', () =>
             resolveParams({PLUGIN_PARAMS: '{"foo":"bar"}'}).tap(res => {
-                res.PLUGIN_PARAMS.should.equal('{"foo":"bar"}');
+                res.PLUGIN_PARAMS.should.deepEqual('{"foo":"bar"}');
             })
         );
 
@@ -130,29 +131,71 @@ describe('Unit tests: Drone CloudFormation', () => {
         );
 
         it('should push an error if file cannot be found', () =>
-            resolveParams({PLUGIN_PARAMS: './file/does/not/exist.json'}).errors(err => {
-                err.message.should.equal('params file could not be resolved');
-            })
+            resolveParams({PLUGIN_PARAMS: './file/does/not/exist.json'}).errors((err, push) => {
+                push(null, err);
+            }).tap(err => err.message.should.equal('params file could not be resolved'))
         );
 
         it('should push an error if file cannot be read', () =>
-            resolveParams({PLUGIN_PARAMS: './file/is/broken.json'}).errors(err => {
-                err.message.should.equal('params file could not be resolved');
-            })
+            resolveParams({PLUGIN_PARAMS: './file/is/broken.json'}).errors((err, push) => {
+                push(null, err);
+            }).tap(err => err.message.should.equal('params file could not be resolved'))
         );
 
         it('should push an error if file cannot be read', () =>
-            resolveParams({PLUGIN_PARAMS: './file/is/broken.json'}).errors(err => {
-                err.message.should.equal('params file could not be resolved');
-            })
+            resolveParams({PLUGIN_PARAMS: './file/is/broken.json'}).errors((err, push) => {
+                push(null, err);
+            }).tap(err => err.message.should.equal('params file could not be resolved'))
+        );
+
+        it('should push an error if file has invalid json', () =>
+            resolveParams({PLUGIN_PARAMS: './path/is/invalid.json'}).errors((err, push) => {
+                push(null, err);
+            }).tap(err => err.message.should.equal('cannot parse params data'))
         );
 
         it('should push an error if params is not correct JSON', () =>
-            resolveParams({PLUGIN_PARAMS: '{not correct'}).errors(err => {
-                err.message.should.equal('cannot parse params data');
-            })
+            resolveParams({PLUGIN_PARAMS: '{not correct'}).errors((err, push) => {
+                push(null, err);
+            }).tap(err => err.message.should.equal('cannot parse params data'))
         );
 
+    });
+    describe('resolveSecretParams()', () => {
+        const resolveSecretParams = plugin.__get__('resolveSecretParams');
+
+        it('should return an empty object if secret params are undefined', () =>
+            resolveSecretParams({}).PLUGIN_SECRET_PARAMS.should.deepEqual({})
+        );
+
+        it('should return an object when secrets are supplied', () =>
+            resolveSecretParams({
+                FOO: 'envvar',
+                PLUGIN_SECRET_PARAMS: '[{"source": "FOO", "target": "bar"}]'
+            }).PLUGIN_SECRET_PARAMS.should.deepEqual({bar: 'envvar'})
+        );
+
+        it('should throw an exception if not passed an array', () =>
+            resolveSecretParams.bind(null, {
+                PLUGIN_SECRET_PARAMS: '{"source": "FOO", "target": "bar"}'
+            }).should.throw('secret_params must be an array')
+        );
+
+        it('should throw an exception if environment variables are missing', () =>
+            resolveSecretParams.bind(null, {
+                PLUGIN_SECRET_PARAMS: '[{"source": "FOO", "target": "bar"}, {"source": "BAZ", "target": "baz"}]'
+            }).should.throw(`The following secrets are missing: FOO, BAZ. Ensure you have included the secrets key in this build step.`)
+        );
+
+
+    });
+    describe('convertSecretParams', () => {
+        const convertSecretParams = plugin.__get__('convertSecretParams');
+        it('should convert list of source/target pairs to an object', () => {
+            const env = {DB_PASSWORD: 'password', DB_USER: 'user'};
+            convertSecretParams(env, [{source: 'DB_PASSWORD', target: 'DbPassword'}]).should.deepEqual({DbPassword: 'password'});
+            convertSecretParams(env, [{source: 'DB_USER', target: 'DbUser'}, {source: 'DB_PASSWORD', target: 'DbPassword'}]).should.deepEqual({DbUser: 'user', DbPassword: 'password'});
+        });
     });
     describe('validateConfig()', () => {
         const validateConfig = plugin.__get__('validateConfig');
@@ -197,6 +240,7 @@ describe('Unit tests: Drone CloudFormation', () => {
                 PLUGIN_PARAMS: '{}'
             });
         });
+
         it('should return env object with custom object params when all is valid', () => {
             validateConfig({
                 PLUGIN_STACKNAME: 'myStack',
@@ -260,6 +304,7 @@ describe('Unit tests: Drone CloudFormation', () => {
                         "CAPABILITY_NAMED_IAM",
                         "CAPABILITY_IAM"
                     ],
+                    cfParams: {},
                     awsConfig: {
                         region: 'eu-west-1'
                     }
@@ -288,6 +333,66 @@ describe('Unit tests: Drone CloudFormation', () => {
                     ],
                     cfParams: {
                         foo: 'bar'
+                    },
+                    awsConfig: {
+                        region: 'eu-west-1'
+                    }
+                });
+            });
+            it('should return promise returning function with secret params', () => {
+                execute({
+                    PLUGIN_MODE: 'createOrUpdate',
+                    PLUGIN_STACKNAME: 'myStack',
+                    PLUGIN_TEMPLATE: 'path/to/template.yml',
+                    PLUGIN_SECRET_PARAMS: {bar: 'envvar'}
+                })();
+                resolveAbsolutePathStub.should.be.calledOnce();
+                resolveAbsolutePathStub.should.be.calledWith('path/to/template.yml');
+                cfnStub.prototype.createOrUpdate.should.be.calledOnce();
+                cfnStub.prototype.create.should.not.be.called();
+                cfnStub.prototype.validate.should.not.be.called();
+                cfnStub.prototype.delete.should.not.be.called();
+                cfnStub.should.be.calledOnce();
+                cfnStub.should.be.calledWith({
+                    name: 'myStack',
+                    template: '/new-template.yml',
+                    capabilities: [
+                        "CAPABILITY_NAMED_IAM",
+                        "CAPABILITY_IAM"
+                    ],
+                    cfParams: {
+                        bar: 'envvar'
+                    },
+                    awsConfig: {
+                        region: 'eu-west-1'
+                    }
+                });
+            });
+            it('should return promise returning function with secret params and regular params', () => {
+                execute({
+                    PLUGIN_MODE: 'createOrUpdate',
+                    PLUGIN_STACKNAME: 'myStack',
+                    PLUGIN_TEMPLATE: 'path/to/template.yml',
+                    PLUGIN_PARAMS: '{"foo":"bar"}',
+                    PLUGIN_SECRET_PARAMS: {bar: 'envvar'}
+                })();
+                resolveAbsolutePathStub.should.be.calledOnce();
+                resolveAbsolutePathStub.should.be.calledWith('path/to/template.yml');
+                cfnStub.prototype.createOrUpdate.should.be.calledOnce();
+                cfnStub.prototype.create.should.not.be.called();
+                cfnStub.prototype.validate.should.not.be.called();
+                cfnStub.prototype.delete.should.not.be.called();
+                cfnStub.should.be.calledOnce();
+                cfnStub.should.be.calledWith({
+                    name: 'myStack',
+                    template: '/new-template.yml',
+                    capabilities: [
+                        "CAPABILITY_NAMED_IAM",
+                        "CAPABILITY_IAM"
+                    ],
+                    cfParams: {
+                        foo: 'bar',
+                        bar: 'envvar'
                     },
                     awsConfig: {
                         region: 'eu-west-1'
@@ -688,7 +793,7 @@ describe('Unit tests: Drone CloudFormation', () => {
             });
         });
         it('should return env object for non-delete modes for non-local path', () => {
-            
+
             return validate({
                 PLUGIN_STACKNAME: 'myCoolStack',
                 PLUGIN_TEMPLATE: 'https://s3.amazonaws.com/mybucket/template.yml',
@@ -724,7 +829,7 @@ describe('Unit tests: Drone CloudFormation', () => {
                 PLUGIN_SECRET_KEY: 'dcba'
             });
             revert.push(plugin.__set__('validateConfig', validateConfigStub));
-            
+
             return validate({
                 PLUGIN_MODE: 'delete',
                 PLUGIN_STACKNAME: 'myCoolStack',
@@ -769,6 +874,7 @@ describe('Unit tests: Drone CloudFormation', () => {
                     PLUGIN_STACKNAME: 'NOTCool',
                     PLUGIN_TEMPLATE: 'omg.yml',
                     PLUGIN_PARAMS: '{"hoo":"haa"}',
+                    PLUGIN_SECRET_PARAMS: {},
                     PLUGIN_ACCESS_KEY: '4321',
                     PLUGIN_SECRET_KEY: 'dcba'
                 });
