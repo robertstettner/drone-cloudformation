@@ -145,7 +145,8 @@ let execute = function (env) {
     const config = {
         awsConfig: {
             region: env.PLUGIN_REGION || 'eu-west-1'
-        }
+        },
+        checkStackInterval: 30000
     };
 
     if (env.PLUGIN_MODE !== 'validate') {
